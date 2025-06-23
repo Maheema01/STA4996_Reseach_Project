@@ -1,0 +1,378 @@
+---
+title: "EDA"
+output: pdf_document
+date: "2025-06-15"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(maps)
+library(viridis)
+```
+
+```{r}
+data <- read_excel("G:/STA4996_Research/data/nutrition.xlsx", sheet = "Total")
+```
+
+
+```{r}
+View(data)
+```
+
+```{r}
+
+colSums(is.na(data))
+```
+
+
+```{r}
+colnames(data)[1:18] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
+
+```
+
+
+
+##By country
+
+#Overweight
+
+```{r}
+overweight_data <- data %>%
+  select(Country, Year, Overweight_survey) %>%
+  filter(!is.na(Overweight_survey))
+overweight_data
+```
+
+```{r}
+
+countries <- unique(overweight_data$Country)
+
+
+for(country in countries) {
+  country_data <- overweight_data %>% filter(Country == country)
+  
+  p <- ggplot(country_data, aes(x = Year, y = Overweight_survey)) +
+    geom_line(color = "steelblue", size = 1) +
+    geom_point(color = "steelblue", size = 2) +
+    labs(title = paste("Prevalence of Overweight in", country),
+         x = "Year",
+         y = "Overweight Prevalence (%)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  print(p)
+  
+  
+  ggsave(paste0("overweight_", gsub(" ", "_", country), ".png"), plot = p, width = 8, height = 6)
+}
+```
+
+```{r}
+data$Year <- as.numeric(data$Year)
+```
+
+```{r}
+selected_countries <- c("Afghanistan", "Bangladesh", "Bolvia", "Botswana", "Brazil", "Chilie", "Colombia","Congo", "Egypt","Ethiopia", "Iran", "India", "Kenya", "Madagascar","Malaysia", "Maldives", "Mali", "Mauritius", "Mexico","Morocco", "Myanmar", "Nepal", "Nigeria", "Pakistan", "Panama", "Peru","South Africa", "Sri Lanka", "Sudan", "Thailand","Venezuela","Vietnam","Zimbabwe", "Albania", "Azerbaijan", "Tajikistan", "Turkey","Rwanda","Niger","Malawi","Mautitania","Jamaica","Indonesia","Uganda","Senegal","Burkina Faso","Burubdi","Chad","Gambia","Kuweit","Togo","Tanzania","Uruguay")
+```
+
+
+```{r}
+data_filtered <- data %>%
+  filter(Country %in% selected_countries & !is.na(Overweight_survey)) %>%
+  group_by(Country) %>%
+  filter(Year == max(Year, na.rm = TRUE)) %>%
+  select(Country, Year, Overweight_survey)
+
+```
+
+```{r}
+world_map <- map_data("world")
+```
+
+
+```{r}
+
+highlighted_map <- world_map %>%
+  filter(region %in% selected_countries) %>%
+  left_join(data_filtered, by = c("region" = "Country"))
+```
+
+```{r}
+ggplot() +
+  geom_polygon(
+    data = world_map, 
+    aes(x = long, y = lat, group = group),
+    fill = "lightgray", 
+    color = "white",
+    linewidth = 0.1
+  ) +
+  geom_polygon(
+    data = highlighted_map %>% mutate(Overweight = as.numeric(Overweight_survey)),
+    aes(x = long, y = lat, group = group, fill = Overweight),
+    color = "black",
+    linewidth = 0.2
+  ) +
+  scale_fill_viridis(
+    name = "Overweight %", 
+    option = "plasma", 
+    direction = -1, 
+    na.value = "grey90",
+    limits = c(0, 100)  
+  ) +
+  coord_fixed(ratio = 1.3) +
+  theme_minimal() +
+  labs(
+    title = "Overweight Percentage by Country",
+    x = "Longitude", 
+    y = "Latitude"
+  ) +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    axis.text = element_blank(),
+    axis.ticks = element_blank()
+  )
+```
+#Stunting
+
+```{r}
+
+stunting_data <- data %>%
+  select(Country, Year, Stunting_survey) %>%
+  filter(!is.na(Stunting_survey))
+
+stunting_data$Stunting <- as.numeric(stunting_data$Stunting)
+stunting_data$Year <- as.numeric(as.character(stunting_data$Year))
+
+
+countries <- unique(stunting_data$Country)
+
+
+y_max <- max(stunting_data$Stunting, na.rm = TRUE)
+
+
+for (country in countries) {
+  country_data <- stunting_data %>% filter(Country == country)
+  
+  if (nrow(country_data) < 2) next  # Skip if not enough data
+
+  p <- ggplot(country_data, aes(x = Year, y = Stunting_survey)) +
+    geom_line(color = "#E69F00", size = 1) +
+    geom_point(color = "#E69F00", size = 2) +
+    labs(title = paste("Prevalence of Stunting in", country),
+         x = "Year",
+         y = "Stunting Prevalence (%)") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5)) +
+    coord_cartesian(ylim = c(0, y_max))
+
+  print(p)
+
+  
+  safe_country <- gsub("[^A-Za-z0-9_]", "_", country)
+  ggsave(filename = paste0("stunting_", safe_country, ".png"),
+         plot = p, width = 8, height = 6, dpi = 300)
+}
+```
+
+
+```{r}
+data_filtered_st <- data %>%
+  filter(Country %in% selected_countries & !is.na(Stunting)) %>%
+  group_by(Country) %>%
+  filter(Year == max(Year, na.rm = TRUE)) %>%
+  select(Country, Year, Stunting)
+```
+
+```{r}
+world_map1 <- map_data("world")
+```
+
+```{r}
+highlighted_map1 <- world_map1 %>%
+  filter(region %in% selected_countries) %>%
+  left_join(data_filtered_st, by = c("region" = "Country"))
+```
+
+```{r}
+
+highlighted_map <- world_map %>%
+  left_join(stunting_data, by = c("region" = "Country"))
+
+
+highlighted_map$Stunting <- as.numeric(highlighted_map$Stunting)
+
+
+ggplot() +
+  geom_polygon(
+    data = world_map,
+    aes(x = long, y = lat, group = group),
+    fill = "lightgray", color = "white", linewidth = 0.1
+  ) +
+  geom_polygon(
+    data = highlighted_map,
+    aes(x = long, y = lat, group = group, fill = Stunting),
+    color = "black", linewidth = 0.2
+  ) +
+  scale_fill_viridis(
+    name = "Stunting (%)",
+    option = "plasma", direction = -1, na.value = "grey90",
+    limits = c(0, max(highlighted_map$Stunting, na.rm = TRUE))
+  ) +
+  coord_fixed(ratio = 1.3) +
+  theme_minimal() +
+  labs(title = "Stunting Percentage by Country", x = "Longitude", y = "Latitude") +
+  theme(
+    legend.position = "bottom",
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 8),
+    axis.text = element_blank(),
+    axis.ticks = element_blank(),
+    panel.grid = element_blank()
+  )
+```
+
+#By year
+
+
+```{r}
+
+yearwise_data <- split(data, data$Year)
+
+
+head(yearwise_data[["2000"]])
+head(yearwise_data[["2001"]])  
+View(yearwise_data)
+```
+
+```{r}
+library(ggplot2)
+```
+
+
+```{r}
+
+for (year in names(yearwise_data)) {
+  cat("===== Year:", year, "=====\n")
+  print(summary(yearwise_data[[year]]))
+  cat("\n\n")
+}
+
+
+```
+```{r}
+for (year in names(yearwise_data)) {
+  data_year <- yearwise_data[[year]]
+  
+  
+  if (all(c("Stunting", "UnemploymentRate") %in% names(data_year))) {
+    
+    complete_data <- na.omit(data_year[, c("Stunting", "UnemploymentRate")])
+    
+    
+    complete_data$Stunting <- as.numeric(complete_data$Stunting)
+    complete_data$UnemploymentRate <- as.numeric(complete_data$UnemploymentRate)
+    
+    if (nrow(complete_data) > 2) {
+      corr_value <- cor(complete_data$Stunting, complete_data$UnemploymentRate, method = "pearson")
+      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
+    } else {
+      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
+    }
+    
+  } else {
+    cat(paste("Year:", year, "- Required variables not found"), "\n")
+  }
+}
+
+
+```
+
+
+```{r}
+for (year in names(yearwise_data)) {
+  data_year <- yearwise_data[[year]]
+  
+
+  if (all(c("Overweight", "hcpi_a") %in% names(data_year))) {
+    
+    complete_data_ow <- na.omit(data_year[, c("Overweight", "hcpi_a")])
+    
+    
+    complete_data_ow$Overweight <- as.numeric(complete_data_ow$Overweight)
+    complete_data_ow$hcpi_a <- as.numeric(complete_data_ow$hcpi_a)
+    
+    if (nrow(complete_data_ow) > 2) {
+      corr_value <- cor(complete_data_ow$Overweight, complete_data_ow$hcpi_a, method = "pearson")
+      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
+    } else {
+      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
+    }
+    
+  } else {
+    cat(paste("Year:", year, "- Required variables not found"), "\n")
+  }
+}
+
+```
+
+```{r}
+for (year in names(yearwise_data)) {
+  data_year <- yearwise_data[[year]]
+  
+  if (all(c("Overweight", "health_expenditure") %in% names(data_year))) {
+    
+    complete_data1 <- na.omit(data_year[, c("Overweight", "health_expenditure")])
+    
+    complete_data1$Overweight <- as.numeric(complete_data1$Overweight)
+    complete_data1$health_expenditure <- as.numeric(complete_data1$health_expenditure)
+    
+    if (nrow(complete_data1) > 2) {
+      corr_value <- cor(complete_data1$Overweight, complete_data1$health_expenditure, method = "pearson")
+      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
+    } else {
+      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
+    }
+    
+  } else {
+    cat(paste("Year:", year, "- Required variables not found"), "\n")
+  }
+}
+
+```
+
+```{r}
+install.packages(c("rnaturalearth", "rnaturalearthdata", "sf"))
+```
+
+
+```{r}
+
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+
+world$highlight <- ifelse(world$name %in% selected_countries, "Selected", "Other")
+
+
+ggplot(data = world) +
+  geom_sf(aes(fill = highlight)) +
+  scale_fill_manual(values = c("Selected" = "tomato", "Other" = "gray90")) +
+  theme_minimal() +
+  labs(title = "Highlighted Countries on World Map",
+       fill = "Country Type")
+```
+
+
+
