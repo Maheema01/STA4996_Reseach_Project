@@ -1,6 +1,8 @@
 ---
 title: "EDA"
-output: pdf_document
+output:
+  html_document:
+    df_print: paged
 date: "2025-06-15"
 ---
 
@@ -14,15 +16,23 @@ library(ggplot2)
 library(dplyr)
 library(maps)
 library(viridis)
+library(tidyverse)
+library(DataExplorer)
+library(corrplot)
+library(ggpubr)
+library(GGally)
+library(reshape2)
+library(scales)
+
 ```
 
 ```{r}
-data <- read_excel("G:/STA4996_Research/data/nutrition.xlsx", sheet = "Total")
+data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
 ```
 
 
 ```{r}
-View(data)
+head(data)
 ```
 
 ```{r}
@@ -35,19 +45,193 @@ colSums(is.na(data))
 colnames(data)[1:18] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
 
 ```
+#Selected countries
+
+```{r}
+
+selected_countries <- c("Afghanistan", "Bangladesh", "Bolvia", "Botswana", "Brazil", "Chilie", "Colombia","Congo", "Egypt","Ethiopia", "Iran", "India", "Kenya", "Madagascar","Malaysia", "Maldives", "Mali", "Mauritius", "Mexico","Morocco", "Myanmar", "Nepal", "Nigeria", "Pakistan", "Panama", "Peru","South Africa", "Sri Lanka", "Sudan", "Thailand","Venezuela","Vietnam","Zimbabwe", "Albania", "Azerbaijan", "Tajikistan", "Turkey","Rwanda","Niger","Malawi","Mautitania","Jamaica","Indonesia","Uganda","Senegal","Burkina Faso","Burubdi","Chad","Gambia","Kuweit","Togo","Tanzania","Uruguay")
+```
 
 
+
+```{r}
+library(ggplot2)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+
+world <- ne_countries(scale = "medium", returnclass = "sf")
+
+
+world$highlight <- ifelse(world$name %in% selected_countries, "Selected", "Other")
+
+
+ggplot(data = world) +
+  geom_sf(aes(fill = highlight)) +
+  scale_fill_manual(values = c("Selected" = "tomato", "Other" = "gray90")) +
+  theme_minimal() +
+  labs(title = "Highlighted Countries on World Map",
+       fill = "Country Type")
+```
+
+
+
+#Missing values 
+
+```{r}
+library(naniar)
+vis_miss(data)          
+miss_var_summary(data)  
+colMeans(is.na(data)) * 100
+```
+By omitting the predictor variables more than 50% of missing values, the selected socioeconomic factors are:
+
+hcpi_a
+fcpi_a
+def_a
+Current health expenditure(% if GDP)
+urban population(% of total population)
+mortality rate under 5
+Low birth weight babies
+unemployment rate 
+
+
+# Distribution of response variables 
+
+Stunting
+```{r}
+# Histograms & density
+ggplot(data, aes(x = Stunting_model)) +
+  geom_histogram(bins = 30, fill = "skyblue", alpha = 0.7) +
+  geom_density(aes(y = ..count..), color = "darkblue") +
+  theme_minimal()
+
+
+```
+
+The distribution is multi-modal (Multiple peaks)
+This indicates that different countries or time periods may cluster around different stunting levels.
+
+The highest concentrations of observations appear between 10% and 40% with several mini-peaks 
+
+The distribution has a slightly right skew: there are some countries or years with very high stunting percentages, though most values are in the lower-to-mid range.
+
+Long tail extending beyond 50%: high stunting in certain countries or time periods, which might act as outliers in modeling.
+
+
+
+overweight
+
+```{r}
+
+ggplot(data, aes(x = Overweight_model)) +
+  geom_histogram(bins = 30, fill = "salmon", alpha = 0.7) +
+  geom_density(aes(y = ..count..), color = "darkred") +
+  theme_minimal()
+```
+
+Right skewed
+
+There is one clear peak around 0-2% overweight prevalence. (unimodal)
+not normally distributed
+the most values appear to be around 0-2%
+
+
+#Correlation Analysis
+
+```{r}
+df_numeric <- data %>% 
+  select(where(is.numeric)) %>% 
+  drop_na()
+
+
+cor_matrix <- cor(df_numeric, use = "complete.obs")
+corrplot(cor_matrix, method = "color", type = "lower", tl.cex = 0.5)
+```
+
+According to the correlation plot,
+
+Overweight modeled values are positively correlated with socioeconomic indicators literacy rate, current health expenditure, urban population and negatively correlated with the variables hcpi_a, fcpi_a, def_a, mortality rate under 5, rural population, low birth weight rate, unemployment rate 
+
+stunting modeled values are negatively correlated with fcpi_a, hcpi_a,def_a, literacy, current health expenditure, urban population, rural population and positively correlated with mortality rate, low birth weight babies, unemployment rate 
+
+#Outlier detction
+
+```{r}
+data %>%
+  select(Country, Stunting_model, Overweight_model) %>%
+  pivot_longer(cols = c(Stunting_model, Overweight_model), names_to = "indicator") %>%
+  ggplot(aes(x = indicator, y = value)) +
+  geom_boxplot(fill = "lightblue") +
+  theme_minimal()
+
+```
+Box plots compare the distributions of overweight and stunting rates across countries.
+
+overweight:
+
+median is around 5-6% and the IQR is narrow
+multiple outliers clustered around 15-25%,indicating several countries with unusually high overweight rates
+
+stunting:
+
+median is around 25-27% and the IQR is much wider 
+Whiskers extend from about 2% to roughly 62%
+no visible outliers, suggesting the whiskers capture the full range
+more normally distributed
+
+patterns:
+
+most countries face low overweight but moderate-to-high stunting
+few countries have severe overweight problems 
+the dual burden exists but is asymmetric across the global landscape
 
 ##By country
+
+Bar chart of average by country 
+
+```{r}
+data %>%
+  group_by(Country) %>%
+  summarise(across(c(Stunting_model, Overweight_model), mean, na.rm = TRUE)) %>%
+  pivot_longer(cols = -Country, names_to = "indicator", values_to = "mean_val") %>%
+  ggplot(aes(x = reorder(Country, mean_val), y = mean_val, fill = indicator)) +
+  geom_bar(stat = "identity", position = "dodge") +
+  coord_flip() +
+  theme_minimal()
+
+```
+
+High prevalence in stunting than the overweight across the selected countries. 
+Countries at the top (Burundi, Afghanistan... ) have high combined rates of stunting and overweight.
+
+Dual burden pattern can be seen: some countries show significant levels of both indicators.Ex: Egypt, South Africa. This indicates the prevalence of double burden of malnutrition.
+
+Transition pattern: As move down the chart, there is generally a shift from stunting-dominant to more balanced or overweight-dominant patterns, but this is not perfectly linear
+
+This suggests different countries face different malnutrition challenges. 
+
+some countries are  primarily dealing with undernutrition (stunting), others with a mixed burden. 
+
+
 
 #Overweight
 
 ```{r}
 overweight_data <- data %>%
-  select(Country, Year, Overweight_survey) %>%
-  filter(!is.na(Overweight_survey))
-overweight_data
+  select(Country, Year, Overweight_model) %>%
+  filter(!is.na(Overweight_model))
+#overweight_data
 ```
+
+```{r}
+ggplot(data, aes(x = Year, y = Overweight_model, group = Country, color = Country)) +
+  geom_line(show.legend = FALSE) +
+  theme_minimal() +
+  labs(title = "Overweight Trends by Country", y = "Overweight (%)")
+```
+
+
 
 ```{r}
 
@@ -57,7 +241,7 @@ countries <- unique(overweight_data$Country)
 for(country in countries) {
   country_data <- overweight_data %>% filter(Country == country)
   
-  p <- ggplot(country_data, aes(x = Year, y = Overweight_survey)) +
+  p <- ggplot(country_data, aes(x = Year, y = Overweight_model)) +
     geom_line(color = "steelblue", size = 1) +
     geom_point(color = "steelblue", size = 2) +
     labs(title = paste("Prevalence of Overweight in", country),
@@ -73,21 +257,22 @@ for(country in countries) {
 }
 ```
 
+countries from the same region and the same sub-region shows different prevalence in overweight. ex: Uruguay, Bolivia, Brazil
+
+most of the countries have declining patterns 
+
 ```{r}
 data$Year <- as.numeric(data$Year)
 ```
 
-```{r}
-selected_countries <- c("Afghanistan", "Bangladesh", "Bolvia", "Botswana", "Brazil", "Chilie", "Colombia","Congo", "Egypt","Ethiopia", "Iran", "India", "Kenya", "Madagascar","Malaysia", "Maldives", "Mali", "Mauritius", "Mexico","Morocco", "Myanmar", "Nepal", "Nigeria", "Pakistan", "Panama", "Peru","South Africa", "Sri Lanka", "Sudan", "Thailand","Venezuela","Vietnam","Zimbabwe", "Albania", "Azerbaijan", "Tajikistan", "Turkey","Rwanda","Niger","Malawi","Mautitania","Jamaica","Indonesia","Uganda","Senegal","Burkina Faso","Burubdi","Chad","Gambia","Kuweit","Togo","Tanzania","Uruguay")
-```
 
 
 ```{r}
 data_filtered <- data %>%
-  filter(Country %in% selected_countries & !is.na(Overweight_survey)) %>%
+  filter(Country %in% selected_countries & !is.na(Overweight_model)) %>%
   group_by(Country) %>%
   filter(Year == max(Year, na.rm = TRUE)) %>%
-  select(Country, Year, Overweight_survey)
+  select(Country, Year, Overweight_model)
 
 ```
 
@@ -113,7 +298,7 @@ ggplot() +
     linewidth = 0.1
   ) +
   geom_polygon(
-    data = highlighted_map %>% mutate(Overweight = as.numeric(Overweight_survey)),
+    data = highlighted_map %>% mutate(Overweight = as.numeric(Overweight_model)),
     aes(x = long, y = lat, group = group, fill = Overweight),
     color = "black",
     linewidth = 0.2
@@ -140,13 +325,22 @@ ggplot() +
     axis.ticks = element_blank()
   )
 ```
+
 #Stunting
+
+```{r}
+ggplot(data, aes(x = Year, y = Stunting_model, group = country, color = country)) +
+  geom_line(show.legend = FALSE) +
+  theme_minimal() +
+  labs(title = "Stunting Trends by Country", y = "Stunting (%)")
+```
+
 
 ```{r}
 
 stunting_data <- data %>%
-  select(Country, Year, Stunting_survey) %>%
-  filter(!is.na(Stunting_survey))
+  select(Country, Year, Stunting_model) %>%
+  filter(!is.na(Stunting_model))
 
 stunting_data$Stunting <- as.numeric(stunting_data$Stunting)
 stunting_data$Year <- as.numeric(as.character(stunting_data$Year))
@@ -163,7 +357,7 @@ for (country in countries) {
   
   if (nrow(country_data) < 2) next  # Skip if not enough data
 
-  p <- ggplot(country_data, aes(x = Year, y = Stunting_survey)) +
+  p <- ggplot(country_data, aes(x = Year, y = Stunting_model)) +
     geom_line(color = "#E69F00", size = 1) +
     geom_point(color = "#E69F00", size = 2) +
     labs(title = paste("Prevalence of Stunting in", country),
@@ -182,13 +376,14 @@ for (country in countries) {
 }
 ```
 
+almost all countries have similar prevelance of stuning over time 
 
 ```{r}
 data_filtered_st <- data %>%
-  filter(Country %in% selected_countries & !is.na(Stunting)) %>%
+  filter(Country %in% selected_countries & !is.na(Stunting_model)) %>%
   group_by(Country) %>%
   filter(Year == max(Year, na.rm = TRUE)) %>%
-  select(Country, Year, Stunting)
+  select(Country, Year, Stunting_model)
 ```
 
 ```{r}
@@ -237,147 +432,6 @@ ggplot() +
     axis.ticks = element_blank(),
     panel.grid = element_blank()
   )
-```
-
-#By year
-
-
-```{r}
-
-yearwise_data <- split(data, data$Year)
-
-
-head(yearwise_data[["2000"]])
-head(yearwise_data[["2001"]])  
-View(yearwise_data)
-```
-
-```{r}
-library(ggplot2)
-```
-
-
-```{r}
-
-for (year in names(yearwise_data)) {
-  cat("===== Year:", year, "=====\n")
-  print(summary(yearwise_data[[year]]))
-  cat("\n\n")
-}
-
-
-```
-```{r}
-for (year in names(yearwise_data)) {
-  data_year <- yearwise_data[[year]]
-  
-  
-  if (all(c("Stunting", "UnemploymentRate") %in% names(data_year))) {
-    
-    complete_data <- na.omit(data_year[, c("Stunting", "UnemploymentRate")])
-    
-    
-    complete_data$Stunting <- as.numeric(complete_data$Stunting)
-    complete_data$UnemploymentRate <- as.numeric(complete_data$UnemploymentRate)
-    
-    if (nrow(complete_data) > 2) {
-      corr_value <- cor(complete_data$Stunting, complete_data$UnemploymentRate, method = "pearson")
-      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
-    } else {
-      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
-    }
-    
-  } else {
-    cat(paste("Year:", year, "- Required variables not found"), "\n")
-  }
-}
-
-
-```
-
-
-```{r}
-for (year in names(yearwise_data)) {
-  data_year <- yearwise_data[[year]]
-  
-
-  if (all(c("Overweight", "hcpi_a") %in% names(data_year))) {
-    
-    complete_data_ow <- na.omit(data_year[, c("Overweight", "hcpi_a")])
-    
-    
-    complete_data_ow$Overweight <- as.numeric(complete_data_ow$Overweight)
-    complete_data_ow$hcpi_a <- as.numeric(complete_data_ow$hcpi_a)
-    
-    if (nrow(complete_data_ow) > 2) {
-      corr_value <- cor(complete_data_ow$Overweight, complete_data_ow$hcpi_a, method = "pearson")
-      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
-    } else {
-      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
-    }
-    
-  } else {
-    cat(paste("Year:", year, "- Required variables not found"), "\n")
-  }
-}
-
-```
-
-```{r}
-for (year in names(yearwise_data)) {
-  data_year <- yearwise_data[[year]]
-  
-  if (all(c("Overweight", "health_expenditure") %in% names(data_year))) {
-    
-    complete_data1 <- na.omit(data_year[, c("Overweight", "health_expenditure")])
-    
-    complete_data1$Overweight <- as.numeric(complete_data1$Overweight)
-    complete_data1$health_expenditure <- as.numeric(complete_data1$health_expenditure)
-    
-    if (nrow(complete_data1) > 2) {
-      corr_value <- cor(complete_data1$Overweight, complete_data1$health_expenditure, method = "pearson")
-      cat(paste("Year:", year, "- Correlation =", round(corr_value, 3)), "\n")
-    } else {
-      cat(paste("Year:", year, "- Not enough data to compute correlation"), "\n")
-    }
-    
-  } else {
-    cat(paste("Year:", year, "- Required variables not found"), "\n")
-  }
-}
-
-```
-
-```{r}
-install.packages(c("rnaturalearth", "rnaturalearthdata", "sf"))
-```
-
-
-```{r}
-
-library(ggplot2)
-library(rnaturalearth)
-library(rnaturalearthdata)
-library(sf)
-
-world <- ne_countries(scale = "medium", returnclass = "sf")
-
-
-world$highlight <- ifelse(world$name %in% selected_countries, "Selected", "Other")
-
-
-ggplot(data = world) +
-  geom_sf(aes(fill = highlight)) +
-  scale_fill_manual(values = c("Selected" = "tomato", "Other" = "gray90")) +
-  theme_minimal() +
-  labs(title = "Highlighted Countries on World Map",
-       fill = "Country Type")
-```
-
-
-
-```{r}
-print("Testing")
 ```
 
 

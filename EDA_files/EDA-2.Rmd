@@ -1,0 +1,377 @@
+---
+title: "Sudu-manike-EDA-2"
+author: "s19552"
+date: "2025-06-28"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages("naniar")
+```
+
+
+```{r}
+# Load necessary libraries
+library(tidyverse)
+library(naniar)      # for missing data visualizations
+library(ggplot2)
+library(corrplot)    # for correlation plots
+library(scales)       # for plot scales
+```
+
+```{r}
+nutrition <- read_csv("F:/Final_Nutrition - Sheet1.csv")
+```
+
+```{r}
+cat("Dataset dimensions (rows, columns):", dim(nutrition), "\n")
+```
+
+
+```{r}
+glimpse(nutrition)
+summary(nutrition)
+```
+
+
+```{r}
+nutrition %>%
+  summarise_all(~ sum(is.na(.))) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "missing_count") %>%
+  arrange(desc(missing_count)) %>%
+  print()
+
+```
+
+
+```{r}
+vis_miss(nutrition) +
+  ggtitle("Missing Values Heatmap")
+```
+
+```{r}
+get_mode <- function(x) {
+  ux <- unique(na.omit(x))
+  ux[which.max(tabulate(match(x, ux)))]
+}
+```
+
+```{r}
+nutrition_imputed <- nutrition %>%
+  mutate(across(where(is.numeric), ~ ifelse(is.na(.), median(., na.rm = TRUE), .))) %>%
+  mutate(across(where(is.character), ~ ifelse(is.na(.), get_mode(.), .)))
+
+# Confirm no missing values remain
+sum(is.na(nutrition_imputed))  # Should be 0
+```
+
+```{r}
+vis_miss(nutrition) +
+  ggtitle("Missing Values Heatmap")
+```
+
+
+```{r}
+num_vars <- nutrition_imputed %>% select(where(is.numeric))
+for (var in names(num_vars)) {
+  p <- ggplot(nutrition_imputed, aes_string(x = var)) +
+    geom_histogram(bins = 30, fill = "skyblue", color = "black", alpha = 0.7) +
+    geom_density(aes(y = ..count..), color = "red", size = 1, alpha = 0.5) +
+    ggtitle(paste("Distribution of", var))
+  print(p)
+}
+
+```
+
+```{r}
+cat_vars <- nutrition_imputed %>% select(where(is.character))
+for (var in names(cat_vars)) {
+  p <- ggplot(nutrition_imputed, aes_string(x = var)) +
+    geom_bar(fill = "lightgreen", color = "black") +
+    ggtitle(paste("Count of", var)) +
+    theme(axis.text.x = element_text(angle = 45, hjust = 1))
+  print(p)
+}
+```
+
+```{r}
+corr_mat <- cor(num_vars, use = "pairwise.complete.obs")
+corrplot(corr_mat, method = "color", type = "upper", tl.cex = 0.8)
+
+```
+
+```{r}
+if ("TargetVariable" %in% names(nutrition_imputed)) {
+  for (var in setdiff(names(num_vars), "TargetVariable")) {
+    p <- ggplot(nutrition_imputed, aes_string(x = var, y = "TargetVariable")) +
+      geom_point(alpha = 0.6) +
+      geom_smooth(method = "lm", se = FALSE, color = "blue") +
+      ggtitle(paste("TargetVariable vs", var))
+    print(p)
+  }
+}
+```
+
+
+```{r}
+# 5. Outlier Detection ------------------------------------------------------
+# 5.1 Boxplots for numeric variables (FIXED VERSION)
+for (var in names(num_vars)) {
+  p <- ggplot(nutrition_imputed, aes(x = "", y = .data[[var]])) +
+    geom_boxplot(fill = "orange", outlier.colour = "red") +
+    ggtitle(paste("Boxplot of", var)) +
+    xlab("") +
+    ylab(var)
+  print(p)
+}
+
+# Alternative approach using across() and pivot_longer()
+nutrition_long <- nutrition_imputed %>%
+  select(where(is.numeric)) %>%
+  pivot_longer(everything(), names_to = "variable", values_to = "value")
+
+# Create all boxplots in one faceted plot
+ggplot(nutrition_long, aes(x = "", y = value)) +
+  geom_boxplot(fill = "orange", outlier.colour = "red") +
+  facet_wrap(~ variable, scales = "free_y") +
+  ggtitle("Boxplots of All Numeric Variables") +
+  xlab("") +
+  theme(axis.text.x = element_blank(),
+        axis.ticks.x = element_blank())
+
+# 5.2 Flagging outliers using IQR method (remains the same)
+outlier_flags <- lapply(num_vars, function(x) {
+  Q1 <- quantile(x, 0.25, na.rm = TRUE)
+  Q3 <- quantile(x, 0.75, na.rm = TRUE)
+  IQR <- Q3 - Q1
+  x < (Q1 - 1.5 * IQR) | x > (Q3 + 1.5 * IQR)
+})
+outlier_counts <- sapply(outlier_flags, sum, na.rm = TRUE)
+print(outlier_counts)
+```
+
+```{r}
+outlier_flags <- lapply(num_vars, function(x) {
+  Q1 <- quantile(x, 0.25)
+  Q3 <- quantile(x, 0.75)
+  IQR <- Q3 - Q1
+  x < (Q1 - 1.5 * IQR) | x > (Q3 + 1.5 * IQR)
+})
+outlier_counts <- sapply(outlier_flags, sum)
+outlier_counts
+
+```
+
+
+```{r}
+nutrition_encoded <- nutrition_imputed %>%
+  mutate(across(where(is.character), as.factor)) %>%
+  mutate(across(where(is.factor), ~ as.integer(.)))
+```
+
+```{r}
+view(nutrition_encoded)
+```
+
+
+```{r}
+nutrition_preprocessed <- nutrition_encoded %>%
+  mutate(across(where(is.numeric), scale))
+```
+
+head(nutrition_preprocessed)
+
+```{r}
+# Convert all list columns to character strings
+nutrition_cleaned <- nutrition_preprocessed %>%
+  mutate(across(where(is.list), ~sapply(.x, function(x) paste(x, collapse = "; "))))
+
+# Then write to CSV
+write_csv(nutrition_encoded, "F:/Final_Nutrition_Cleaned.csv")
+```
+
+
+```{r}
+library(purrr)
+
+nutrition_cleaned <- nutrition_preprocessed %>%
+  mutate(across(where(is.list), ~map_chr(.x, ~paste(.x, collapse = "; "))))
+
+write_csv(nutrition_cleaned, "F:/Final_Nutrition_Cleaned.csv")
+```
+
+
+
+
+```{r}
+write_csv(nutrition_preprocessed, "F:/Final_Nutrition_Cleaned.csv")
+
+```
+```{r}
+# 6. Preprocessing ----------------------------------------------------------
+# 6.1 Encoding categorical variables
+nutrition_encoded <- nutrition_imputed %>%
+  mutate(across(where(is.character), as.factor)) %>%
+  mutate(across(where(is.factor), ~ as.integer(.)))
+
+# 6.2 Scaling numeric variables
+nutrition_preprocessed <- nutrition_encoded %>%
+  mutate(across(where(is.numeric), scale))
+
+# 6.3 Drop redundant columns (if any)
+# nutrition_preprocessed <- nutrition_preprocessed %>% select(-c(UnnecessaryColumn1, UnnecessaryColumn2))
+
+# 7. Save cleaned/preprocessed data ----------------------------------------
+#write_csv(nutrition_preprocessed, "Final_Nutrition_Cleaned.csv")
+
+# 8. Minimal SARIMA Model --------------------------------------------------
+# Fit a SARIMA model using one numeric variable over time (e.g., NutrientScore)
+# Ensure Year andvariable exist and are sorted
+
+
+# Replace 'NutrientScore' with the actual numeric column name to forecast
+ts_data <- ts(nutrition_imputed$NutrientScore, start = 2000, frequency = 1)
+
+# Fit ARIMA model
+sarima_model <- auto.arima(ts_data, seasonal = TRUE, stepwise = FALSE, approximation = FALSE)
+summary(sarima_model)
+
+# Forecast next 5 years
+forecast_data <- forecast(sarima_model, h = 5)
+
+# Plot forecast
+autoplot(forecast_data) +
+  ggtitle("SARIMA Forecast for NutrientScore") +
+  xlab("Year") + ylab("Forecasted Value") +
+  theme_minimal()
+
+# End of EDA, Preprocessing, and SARIMA Modelling Script
+
+```
+
+```{r}
+names(nutrition_imputed)
+
+```
+
+
+```{r}
+# 1. Load required packages
+if (!require("readr")) install.packages("readr")
+if (!require("ggplot2")) install.packages("ggplot2")
+if (!require("forecast")) install.packages("forecast")
+if (!require("tseries")) install.packages("tseries")
+
+library(readr)
+library(ggplot2)
+library(forecast)
+library(tseries)
+
+# 2. Load the dataset
+data <- read_csv("F:/Final_Nutrition_Cleaned.csv")
+
+# View column names and structure
+str(data)
+
+# 3. Create a time series object
+ts_data <- ts(data$Stunting_model, start = min(data$Year), frequency = 1)
+
+# 4. Visualize the time series
+autoplot(ts_data) +
+  ggtitle("Malnutrition Rate Over Time") +
+  ylab("Malnutrition Rate") +
+  xlab("Year")
+
+# 5. Check stationarity (ADF Test)
+adf_result <- adf.test(ts_data)
+print(adf_result)
+
+# If not stationary, difference the data
+ndiffs(ts_data)  # Suggests the number of differences needed
+
+# 6. Plot ACF and PACF
+acf(ts_data)
+pacf(ts_data)
+
+# 7. Fit ARIMA model automatically
+model <- auto.arima(ts_data)
+
+# 8. Model summary
+summary(model)
+
+# 9. Diagnostic plots
+checkresiduals(model)
+
+# 10. Forecast for next 5 years
+forecast_values <- forecast(model, h = 5)
+
+# 11. Plot forecast
+autoplot(forecast_values) +
+  ggtitle("5-Year Forecast of Malnutrition Rate") +
+  ylab("Malnutrition Rate") +
+  xlab("Year")
+
+```
+
+```{r}
+data
+```
+```{r}
+# 1. Load required packages
+packages <- c("readr", "dplyr", "ggplot2", "forecast")
+installed <- packages %in% rownames(installed.packages())
+if (any(!installed)) install.packages(packages[!installed])
+lapply(packages, library, character.only = TRUE)
+
+# 2. Load the dataset
+data <- read_csv("F:/Final_Nutrition_Cleaned.csv")
+
+# 3. Check structure to identify country and year columns
+str(data)
+
+# 4. Clean and filter: Assume columns 'Country', 'Year', and 'MalnutritionRate' exist
+# If needed, rename:
+# data <- data %>% rename(Country = country_column_name, MalnutritionRate = rate_column_name)
+
+# 5. Create ARIMA plots for each country
+unique_countries <- unique(data$Country)
+
+for (country in unique_countries) {
+  cat("Processing:", country, "\n")
+  
+  country_data <- data %>%
+    filter(Country == country) %>%
+    arrange(Year)
+  
+  # Create time series
+  ts_data <- ts(country_data$Stunting_survey, start = min(country_data$Year), frequency = 1)
+  
+  # Fit ARIMA model (no forecasting)
+  model <- auto.arima(ts_data)
+  fitted_values <- fitted(model)
+  
+  # Combine original and fitted values for plotting
+  plot_df <- data.frame(
+    Year = country_data$Year,
+    Actual = as.numeric(ts_data),
+    Fitted = as.numeric(fitted_values)
+  )
+  
+  # Plot
+  p <- ggplot(plot_df, aes(x = Year)) +
+    geom_line(aes(y = Actual), color = "black", size = 1, linetype = "solid") +
+    geom_line(aes(y = Fitted), color = "blue", size = 1, linetype = "dashed") +
+    labs(title = paste("ARIMA Model Fit -", country),
+         y = "Malnutrition Rate") +
+    theme_minimal()
+  
+  print(p)
+}
+
+```
+

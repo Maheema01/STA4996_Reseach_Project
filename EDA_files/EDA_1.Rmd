@@ -1,0 +1,153 @@
+---
+title: "EDA-Nutrition"
+author: "s19552"
+date: "2025-06-26"
+output: pdf_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+# Install packages if not already installed
+packages <- c("readxl", "dplyr", "tidyr", "ggplot2", "stringr", "skimr", "DataExplorer", 
+              "corrplot", "GGally", "forcats", "gridExtra", "janitor")
+install.packages(setdiff(packages, rownames(installed.packages())))
+
+# Load libraries
+library(readxl)
+library(dplyr)
+library(tidyr)
+library(ggplot2)
+library(stringr)
+library(skimr)
+library(DataExplorer)
+library(corrplot)
+library(GGally)
+library(forcats)
+library(gridExtra)
+library(janitor)
+
+```
+
+```{r}
+# Load the dataset
+df <- read_excel("F:/nutrition.xlsx")
+
+# View structure and shape
+glimpse(df)
+dim(df)  # Rows, Columns
+names(df)  # Column names
+
+```
+```{r}
+df <- clean_names(df)  # Converts to snake_case, lowercase
+
+```
+
+
+```{r}
+missing_pct <- colSums(is.na(df)) / nrow(df) * 100
+print(round(missing_pct, 2))
+```
+
+```{r}
+#Impute remaining missing values
+df <- df %>% mutate(across(where(is.numeric), ~ifelse(is.na(.), median(., na.rm = TRUE), .)))
+
+```
+
+```{r}
+head(df)
+```
+```{r}
+df <- df %>% distinct()
+
+```
+
+```{r}
+# Convert character columns to factors
+df <- df %>% mutate(across(where(is.character), as.factor))
+
+```
+
+```{r}
+head(df)
+```
+
+```{r}
+# 1. Z-score normalization (optional, for scaling)
+zscore <- function(x) { (x - mean(x, na.rm = TRUE)) / sd(x, na.rm = TRUE) }
+
+df <- df %>%
+  mutate(across(where(is.numeric), zscore))
+
+# 2. Filter out rows with any numeric column having Z-score > ±3
+df <- df %>%
+  filter(if_all(where(is.numeric), ~ abs(.) < 3))
+
+```
+
+
+```{r}
+# Install necessary packages if not already installed
+packages <- c("readxl", "ggplot2", "dplyr", "tidyr", "GGally", "corrplot", "reshape2", "janitor")
+install.packages(setdiff(packages, rownames(installed.packages())))
+
+# Load them
+library(readxl)
+library(ggplot2)
+library(dplyr)
+library(tidyr)
+library(GGally)
+library(corrplot)
+library(reshape2)
+library(janitor)
+
+```
+
+```{r}
+num_cols <- df %>% select(where(is.numeric)) %>% names()
+
+for (col in num_cols) {
+  p <- ggplot(df, aes_string(x = col)) +
+    geom_histogram(aes(y = ..density..), fill = "skyblue", color = "black", bins = 30) +
+    geom_density(color = "red", size = 1) +
+    labs(title = paste("Distribution of", col), x = col, y = "Density") +
+    theme_minimal() +
+    theme(plot.title = element_text(hjust = 0.5))
+  
+  print(p)  # print the plot object explicitly inside the loop
+}
+
+
+```
+
+```{r}
+numeric_data <- df %>% select(where(is.numeric))
+cor_matrix <- cor(numeric_data, use = "complete.obs")
+
+corrplot(cor_matrix, method = "color", type = "lower", tl.cex = 0.8,
+         title = "Correlation Matrix", mar = c(0,0,1,0))
+
+```
+
+
+
+
+```{r}
+colnames(df)
+```
+
+
+```{r}
+ggplot(df, aes(x = hcpi_a, y = stunting_survey)) +
+  geom_point(aes(color = country), size = 2) +
+  facet_wrap(~ country) +
+  labs(title = "Stunting vs Inflation by Country", x = "Inflation", y = "Stunting (%)") +
+  theme_minimal()
+
+```
+
