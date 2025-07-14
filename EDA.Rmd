@@ -23,6 +23,11 @@ library(ggpubr)
 library(GGally)
 library(reshape2)
 library(scales)
+library(rnaturalearth)
+library(rnaturalearthdata)
+library(sf)
+library(naniar)
+#library(ggqplot)
 
 ```
 
@@ -32,7 +37,7 @@ data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
 
 
 ```{r}
-head(data)
+#head(data)
 ```
 
 ```{r}
@@ -55,11 +60,6 @@ selected_countries <- c("Afghanistan", "Bangladesh", "Bolvia", "Botswana", "Braz
 
 
 ```{r}
-library(ggplot2)
-library(rnaturalearth)
-library(rnaturalearthdata)
-library(sf)
-
 world <- ne_countries(scale = "medium", returnclass = "sf")
 
 
@@ -79,7 +79,6 @@ ggplot(data = world) +
 #Missing values 
 
 ```{r}
-library(naniar)
 vis_miss(data)          
 miss_var_summary(data)  
 colMeans(is.na(data)) * 100
@@ -224,14 +223,6 @@ overweight_data <- data %>%
 #overweight_data
 ```
 
-```{r}
-ggplot(data, aes(x = Year, y = Overweight_model, group = Country, color = Country)) +
-  geom_line(show.legend = FALSE) +
-  theme_minimal() +
-  labs(title = "Overweight Trends by Country", y = "Overweight (%)")
-```
-
-
 
 ```{r}
 
@@ -289,6 +280,41 @@ highlighted_map <- world_map %>%
 ```
 
 ```{r}
+data$
+```
+
+
+```{r}
+library(ggplot2)
+library(dplyr)
+library(viridis)
+
+# Step 1: Create a 5-year period column
+highlighted_map <- highlighted_map %>%
+  mutate(
+    Year = as.numeric(year),  # Ensure 'year' column exists
+    Period = case_when(
+      Year >= 2000 & Year < 2005 ~ "2000–2004",
+      Year >= 2005 & Year < 2010 ~ "2005–2009",
+      Year >= 2010 & Year < 2015 ~ "2010–2014",
+      Year >= 2015 & Year < 2020 ~ "2015–2019",
+      Year >= 2020 ~ "2020+"
+    )
+  )
+
+# Step 2: Compute average overweight by country and period
+avg_overweight <- highlighted_map %>%
+  group_by(country, Period) %>%
+  summarise(Overweight = mean(as.numeric(Overweight_model), na.rm = TRUE)) %>%
+  ungroup()
+
+# Step 3: Join average data back to map data (to get coordinates)
+map_data_period <- highlighted_map %>%
+  select(long, lat, group, country, Period) %>%
+  distinct() %>%
+  left_join(avg_overweight, by = c("country", "Period"))
+
+# Step 4: Plot
 ggplot() +
   geom_polygon(
     data = world_map, 
@@ -298,25 +324,26 @@ ggplot() +
     linewidth = 0.1
   ) +
   geom_polygon(
-    data = highlighted_map %>% mutate(Overweight = as.numeric(Overweight_model)),
+    data = map_data_period,
     aes(x = long, y = lat, group = group, fill = Overweight),
     color = "black",
     linewidth = 0.2
   ) +
   scale_fill_viridis(
-    name = "Overweight %", 
+    name = "Avg Overweight %", 
     option = "plasma", 
     direction = -1, 
     na.value = "grey90",
-    limits = c(0, 100)  
+    limits = c(0, 100)
   ) +
   coord_fixed(ratio = 1.3) +
   theme_minimal() +
   labs(
-    title = "Overweight Percentage by Country",
+    title = "Average Overweight Percentage by Country (5-Year Periods)",
     x = "Longitude", 
     y = "Latitude"
   ) +
+  facet_wrap(~ Period) +
   theme(
     legend.position = "bottom",
     legend.title = element_text(size = 10),
@@ -324,7 +351,18 @@ ggplot() +
     axis.text = element_blank(),
     axis.ticks = element_blank()
   )
+
+
 ```
+
+
+
+```{r}
+table(highlighted_map_cleaned$Period)
+
+```
+
+
 
 #Stunting
 
@@ -433,5 +471,16 @@ ggplot() +
     panel.grid = element_blank()
   )
 ```
+
+Q-Q plots for stunting
+
+
+
+```{r}
+ggqqplot(data$Stunting_model, title = "QQ Plot - Stunting")
+
+```
+
+the stunting data is not perfectly normally distributed.
 
 

@@ -1,0 +1,106 @@
+---
+title: "Regression_overweight"
+output: html_document
+date: "2025-07-14"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+library(performance)
+library(see)
+library(dplyr)
+library(tidyverse)
+library(MASS)
+```
+
+```{r}
+data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
+
+
+colnames(data)[1:25] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
+
+```
+
+
+```{r}
+#head(data)
+```
+
+
+```{r}
+modelow<-lm(Overweight_model~fcpi_a+hcpi_a+U5_population+def_a+health_expenditure+inf_mortality+LBW+UnemploymentRate+Urban_pop+rural_pop,data=data)
+```
+
+
+```{r}
+check_model(modelow)
+
+```
+
+Check Multicollinearity (VIF)
+
+```{r}
+check_collinearity(modelow)
+
+```
+
+Check Homoscedasticity
+
+```{r}
+check_heteroscedasticity(modelow)
+
+```
+
+Check Normality of Residuals
+
+```{r}
+check_normality(modelow)
+
+```
+
+Check Outliers
+
+```{r}
+check_outliers(modelow)
+
+```
+
+Model Summary Performance Metrics
+
+```{r}
+model_performance(modelow)
+
+```
+
+```{r}
+data_clean <- data %>%
+  select(Overweight_model, Urban_pop, health_expenditure, fcpi_a, def_a, UnemploymentRate) %>%
+  drop_na()
+
+```
+
+
+```{r}
+modelow1 <- lm(Overweight_model ~ Urban_pop + health_expenditure + fcpi_a + def_a + UnemploymentRate,data = data_clean)
+
+
+```
+
+```{r}
+
+step_model <- stepAIC(modelow1, direction = "both")
+summary(step_model)
+
+```
+
+
+```{r}
+model_performance(modelow)
+model_performance(step_model)
+
+```
+
