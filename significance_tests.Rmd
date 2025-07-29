@@ -1,0 +1,73 @@
+---
+title: "Chi-squared test"
+output: html_document
+date: "2025-07-28"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+```{r}
+
+```
+
+
+```{r}
+data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
+```
+
+```{r}
+colnames(data)[1:25] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
+```
+
+
+Stunting
+
+```{r}
+data$stunting_level <- cut(data$Stunting_model,
+                           breaks = c(0, 20, 30, Inf),
+                           labels = c("Low", "Moderate", "High"),
+                           right = FALSE)
+```
+
+```{r}
+# Test between stunting_level and Country
+chisq.test(table(data$stunting_level, data$Country))
+```
+
+
+```{r}
+# Test between stunting_level and UN sub region
+chisq.test(table(data$stunting_level, data$UN_sub_region))
+```
+
+```{r}
+# Test between stunting_level and Region
+chisq.test(table(data$stunting_level, data$UN_Region))
+```
+
+Overweight
+
+```{r}
+data$overweight_level <- cut(data$Overweight_model,
+                           breaks = c(0, 10, 20, Inf),
+                           labels = c("Low", "Moderate", "High"),
+                           right = FALSE)
+```
+
+```{r}
+# Test between stunting_level and Country
+chisq.test(table(data$overweight_level, data$Country))
+```
+
+```{r}
+# Test between stunting_level and UN sub region
+chisq.test(table(data$overweight_level, data$UN_sub_region))
+```
+
+```{r}
+# Test between stunting_level and Region
+chisq.test(table(data$overweight_level, data$UN_Region))
+```
+

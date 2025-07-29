@@ -27,7 +27,8 @@ library(rnaturalearth)
 library(rnaturalearthdata)
 library(sf)
 library(naniar)
-#library(ggqplot)
+library(tidyr)
+library(stringr)
 
 ```
 
@@ -45,18 +46,21 @@ data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
 colSums(is.na(data))
 ```
 
-
 ```{r}
-colnames(data)[1:18] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
+colnames(data)[1:25] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
 
 ```
 #Selected countries
 
 ```{r}
 
-selected_countries <- c("Afghanistan", "Bangladesh", "Bolvia", "Botswana", "Brazil", "Chilie", "Colombia","Congo", "Egypt","Ethiopia", "Iran", "India", "Kenya", "Madagascar","Malaysia", "Maldives", "Mali", "Mauritius", "Mexico","Morocco", "Myanmar", "Nepal", "Nigeria", "Pakistan", "Panama", "Peru","South Africa", "Sri Lanka", "Sudan", "Thailand","Venezuela","Vietnam","Zimbabwe", "Albania", "Azerbaijan", "Tajikistan", "Turkey","Rwanda","Niger","Malawi","Mautitania","Jamaica","Indonesia","Uganda","Senegal","Burkina Faso","Burubdi","Chad","Gambia","Kuweit","Togo","Tanzania","Uruguay")
+selected_countries <- c("Afghanistan", "Bangladesh", "Bolivia", "Botswana", "Brazil", "Chile", "Colombia","Congo", "Egypt","Ethiopia", "Iran", "India", "Kenya", "Madagascar","Malaysia", "Maldives", "Mali", "Mauritius", "Mexico","Morocco", "Myanmar", "Nepal", "Nigeria", "Pakistan", "Panama", "Peru","South Africa", "Sri Lanka", "Sudan", "Thailand","Venezuela","Vietnam","Zimbabwe", "Albania", "Azerbaijan", "Tajikistan", "Turkey","Rwanda","Niger","Malawi","Mautitania","Jamaica","Indonesia","Uganda","Senegal","Burkina Faso","Burubdi","Chad","Gambia","Kuweit","Togo","Tanzania","Uruguay")
 ```
 
+```{r}
+unique(data$Country)
+
+```
 
 
 ```{r}
@@ -139,20 +143,24 @@ the most values appear to be around 0-2%
 #Correlation Analysis
 
 ```{r}
-df_numeric <- data %>% 
-  select(where(is.numeric)) %>% 
-  drop_na()
+
+selected_df <- data %>%
+  select(Stunting_model,Stunting_survey,Overweight_model,Overweight_survey,Underweight_survey,Wasting_survey,hcpi_a,fcpi_a,def_a, U5_population,Urban_pop,rural_pop,UnemploymentRate,LBW,inf_mortality,health_expenditure)
 
 
-cor_matrix <- cor(df_numeric, use = "complete.obs")
-corrplot(cor_matrix, method = "color", type = "lower", tl.cex = 0.5)
+cor_matrix <- cor(selected_df, use = "complete.obs")
+
+
+corrplot::corrplot(cor_matrix,
+                   method = "color",
+                   col = colorRampPalette(c("blue", "white", "red"))(200),
+                   type = "upper",
+                   tl.cex = 0.6,
+                   number.cex = 0.45,
+                   addCoef.col = "black",
+                   tl.col = "black",
+                   diag=FALSE)
 ```
-
-According to the correlation plot,
-
-Overweight modeled values are positively correlated with socioeconomic indicators literacy rate, current health expenditure, urban population and negatively correlated with the variables hcpi_a, fcpi_a, def_a, mortality rate under 5, rural population, low birth weight rate, unemployment rate 
-
-stunting modeled values are negatively correlated with fcpi_a, hcpi_a,def_a, literacy, current health expenditure, urban population, rural population and positively correlated with mortality rate, low birth weight babies, unemployment rate 
 
 #Outlier detction
 
@@ -190,17 +198,31 @@ the dual burden exists but is asymmetric across the global landscape
 Bar chart of average by country 
 
 ```{r}
+
 data %>%
   group_by(Country) %>%
   summarise(across(c(Stunting_model, Overweight_model), mean, na.rm = TRUE)) %>%
   pivot_longer(cols = -Country, names_to = "indicator", values_to = "mean_val") %>%
+  mutate(Country = str_wrap(Country, width = 16)) %>%  # Optional: wrap long names
   ggplot(aes(x = reorder(Country, mean_val), y = mean_val, fill = indicator)) +
   geom_bar(stat = "identity", position = "dodge") +
   coord_flip() +
-  theme_minimal()
+  theme_minimal(base_size = 12) +
+  theme(
+    axis.text.y = element_text(size = 6),
+    axis.text.x = element_text(size = 9),
+    legend.title = element_text(size = 10),
+    legend.text = element_text(size = 9),
+    plot.title = element_text(size = 14)
+  ) +
+  labs(
+    x = "Country",
+    y = "Mean Prevalence (%)",
+    title = "Average Stunting and Overweight Prevalence by Country",
+    fill = "Indicator"
+  )
 
 ```
-
 High prevalence in stunting than the overweight across the selected countries. 
 Countries at the top (Burundi, Afghanistan... ) have high combined rates of stunting and overweight.
 
@@ -210,8 +232,7 @@ Transition pattern: As move down the chart, there is generally a shift from stun
 
 This suggests different countries face different malnutrition challenges. 
 
-some countries are  primarily dealing with undernutrition (stunting), others with a mixed burden. 
-
+some countries are  primarily dealing with undernutrition con (stunting), others with a mixed burden. 
 
 
 #Overweight
@@ -279,17 +300,10 @@ highlighted_map <- world_map %>%
   left_join(data_filtered, by = c("region" = "Country"))
 ```
 
-```{r}
-data$
-```
 
 
 ```{r}
-library(ggplot2)
-library(dplyr)
-library(viridis)
 
-# Step 1: Create a 5-year period column
 highlighted_map <- highlighted_map %>%
   mutate(
     Year = as.numeric(year),  # Ensure 'year' column exists
@@ -298,23 +312,23 @@ highlighted_map <- highlighted_map %>%
       Year >= 2005 & Year < 2010 ~ "2005–2009",
       Year >= 2010 & Year < 2015 ~ "2010–2014",
       Year >= 2015 & Year < 2020 ~ "2015–2019",
-      Year >= 2020 ~ "2020+"
+      Year >= 2020 ~ "2020+",
+      TRUE ~ NA_character_
     )
   )
 
-# Step 2: Compute average overweight by country and period
+
 avg_overweight <- highlighted_map %>%
-  group_by(country, Period) %>%
+  group_by(region, Period) %>%  
   summarise(Overweight = mean(as.numeric(Overweight_model), na.rm = TRUE)) %>%
   ungroup()
 
-# Step 3: Join average data back to map data (to get coordinates)
-map_data_period <- highlighted_map %>%
-  select(long, lat, group, country, Period) %>%
-  distinct() %>%
-  left_join(avg_overweight, by = c("country", "Period"))
 
-# Step 4: Plot
+map_data_period <- highlighted_map %>%
+  select(long, lat, group, region, Period) %>% 
+  distinct() %>%
+  left_join(avg_overweight, by = c("region", "Period"))
+
 ggplot() +
   geom_polygon(
     data = world_map, 
@@ -352,26 +366,15 @@ ggplot() +
     axis.ticks = element_blank()
   )
 
-
 ```
 
 
 
-```{r}
-table(highlighted_map_cleaned$Period)
-
-```
 
 
 
 #Stunting
 
-```{r}
-ggplot(data, aes(x = Year, y = Stunting_model, group = country, color = country)) +
-  geom_line(show.legend = FALSE) +
-  theme_minimal() +
-  labs(title = "Stunting Trends by Country", y = "Stunting (%)")
-```
 
 
 ```{r}
@@ -483,4 +486,620 @@ ggqqplot(data$Stunting_model, title = "QQ Plot - Stunting")
 
 the stunting data is not perfectly normally distributed.
 
+#Overweight
+
+```{r}
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = Overweight_model)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Overweight_model by Country in", year),
+         x = "Country", y = "Overweight_model (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+
+
+```
+
+
+
+```{r}
+
+df_filtered1 <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+years <- sort(unique(df_filtered1$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered1 %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = Stunting_model)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Stunting_model by Country in", year),
+         x = "Country", y = "Stunting_model (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+
+```
+
+```{r}
+summary_stats <- data %>%
+  group_by(Year) %>%
+  summarise(
+    Mean_Stunting = mean(Stunting_model, na.rm = TRUE),
+    Median_Stunting = median(Stunting_model, na.rm = TRUE),
+    Min_Stunting = min(Stunting_model, na.rm = TRUE),
+    Max_Stunting = max(Stunting_model, na.rm = TRUE),
+    .groups = "drop"
+  )
+
+print(summary_stats)
+
+```
+
+
+```{r}
+ggplot(data, aes(x = factor(Year), y = Stunting_model)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(
+    title = "Distribution of Stunting Prevalence by Year",
+    x = "Year",
+    y = "Stunting Prevalence (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(
+  data %>% filter(Country %in% selected_countries),
+  aes(x = Year, y = Stunting_model, color = Country, group = Country)
+) +
+  geom_line(size = 1.2) +
+  geom_point() +
+  labs(
+    title = "Trends in Stunting Prevalence (2000–2022)",
+    x = "Year",
+    y = "Stunting Prevalence (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+
+```{r}
+df_filtered1 <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered1$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered1 %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = Stunting_survey)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Stunting_survey by Country in", year),
+         x = "Country", y = "Stunting_survey (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
+
+```{r}
+df_filtered1 <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered1$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered1 %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = Overweight_survey)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Overweight_survey by Country in", year),
+         x = "Country", y = "Overweight_survey (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
+
+```{r}
+ggplot(data, aes(x = factor(Year), y = Overweight_model)) +
+  geom_boxplot(fill = "skyblue") +
+  labs(
+    title = "Distribution of Overweight Prevalence by Year",
+    x = "Year",
+    y = "Overweight Prevalence (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+summary_stats <- data %>%
+  group_by(Year) %>%
+  summarise(across(where(is.numeric), 
+                   .fns = list(
+                     mean = \(x) mean(x, na.rm = TRUE),
+                     median = \(x) median(x, na.rm = TRUE),
+                     sd = \(x) sd(x, na.rm = TRUE)
+                   )))
+summary_stats
+```
+
+```{r}
+min(summary_stats$Stunting_model_sd)
+max(summary_stats$Stunting_model_sd)
+```
+
+```{r}
+data$Year <- as.numeric(as.character(data$Year))
+
+```
+
+
+
+```{r}
+
+nutrition_data$Year <- as.numeric(as.character(nutrition_data$Year))
+
+nutrition_data <- nutrition_data %>%
+  mutate(Year_Group = cut(Year,
+                          breaks = c(2000, 2005, 2010, 2015, 2020, 2025),
+                          labels = c("2000-2004", "2005-2009", "2010-2014", "2015-2019", "2020-2024"),
+                          right = FALSE,
+                          include.lowest = TRUE))
+
+stunting_summary <- nutrition_data %>%
+  group_by(Country, Year_Group) %>%
+  summarise(Stunting_Avg = mean(Stunting_model, na.rm = TRUE)) %>%
+  ungroup()
+
+
+print(stunting_summary)
+
+
+```
+
+
+```{r}
+ggplot(stunting_summary, aes(x = Year_Group, y = Stunting_Avg, group = Country, color = Country)) +
+  geom_line() +
+  geom_point() +
+  theme_minimal() +
+  labs(title = "Stunting Prevalence by Country (5-year averages)",
+       x = "Year Group",
+       y = "Average Stunting (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+
+
+```{r}
+ggplot(stunting_summary, aes(x = Year_Group, y = reorder(Country, -Stunting_Avg), fill = Stunting_Avg)) +
+  geom_tile(color = "white") +
+  scale_fill_viridis_c(name = "Stunting Avg", option = "D") +
+  theme_minimal(base_size = 12) +
+  labs(title = "Stunting Prevalence Heatmap by Country and Time Period",
+       x = "Year Group",
+       y = "Country") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    axis.text.y = element_text(size = 7, hjust = 1),
+    plot.margin = margin(10, 20, 10, 10)
+  )
+
+
+```
+
+
+
+```{r}
+ggplot(stunting_summary, aes(x = Year_Group, y = Stunting_Avg, group = Country)) +
+  geom_line(color = "steelblue") +
+  geom_point(color = "steelblue") +
+  facet_wrap(~ Country, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Stunting Prevalence by Country (5-year averages)",
+       x = "Year Group",
+       y = "Average Stunting (%)") +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+```
+
+```{r}
+nutrition_data <- data %>%
+  filter(!is.na(Year)) %>%  # make sure no missing years
+  mutate(
+    Year = as.numeric(Year),  # convert if needed
+    Year_Bin_Start = 2000 + 5 * floor((Year - 2000) / 5),
+    Year_Bin_Label = paste0(Year_Bin_Start, "-", Year_Bin_Start + 4)
+  )
+
+```
+
+```{r}
+table(nutrition_data$Year_Bin_Label)
+```
+
+```{r}
+stunting_summary <- nutrition_data %>%
+  group_by(UN_Region, Country, Year_Bin_Label) %>%
+  summarise(Stunting_Avg = mean(Stunting_model, na.rm = TRUE)) %>%
+  ungroup()
+
+```
+
+```{r}
+ggplot(stunting_summary, aes(x = Year_Bin_Label, y = Stunting_Avg, group = Country, color = Country)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ UN_Region, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Stunting Prevalence by Country and Region (5-year Averages)",
+       x = "5-Year Period",
+       y = "Stunting Prevalence (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+
+```
+
+```{r}
+stunting_summary <- nutrition_data %>%
+  group_by(UN_sub_region, Country, Year_Bin_Label) %>%
+  summarise(Stunting_Avg = mean(Stunting_model, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+```{r}
+ggplot(stunting_summary, aes(x = Year_Bin_Label, y = Stunting_Avg, group = Country, color = Country)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ UN_sub_region, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Stunting Prevalence by Country and Sub Region (5-year Averages)",
+       x = "5-Year Period",
+       y = "Stunting Prevalence (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+
+
+
+```{r}
+nutrition_data <- data %>%
+  filter(!is.na(Year)) %>%  # make sure no missing years
+  mutate(
+    Year = as.numeric(Year),  # convert if needed
+    Year_Bin_Start = 2000 + 5 * floor((Year - 2000) / 5),
+    Year_Bin_Label = paste0(Year_Bin_Start, "-", Year_Bin_Start + 4)
+  )
+
+```
+
+
+```{r}
+overweight_summary <- nutrition_data %>%
+  group_by(UN_Region, Country, Year_Bin_Label) %>%
+  summarise(overweight_Avg = mean(Overweight_model, na.rm = TRUE)) %>%
+  ungroup()
+
+```
+
+```{r}
+ggplot(overweight_summary, aes(x = Year_Bin_Label, y = overweight_Avg, group = Country, color = Country)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ UN_Region, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Overweight Prevalence by Country and Region (5-year Averages)",
+       x = "5-Year Period",
+       y = "Overweight Prevalence (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+```{r}
+overweight_summary <- nutrition_data %>%
+  group_by(UN_sub_region, Country, Year_Bin_Label) %>%
+  summarise(overweight_Avg = mean(Overweight_model, na.rm = TRUE)) %>%
+  ungroup()
+```
+
+
+```{r}
+ggplot(overweight_summary, aes(x = Year_Bin_Label, y = overweight_Avg, group = Country, color = Country)) +
+  geom_line() +
+  geom_point() +
+  facet_wrap(~ UN_sub_region, scales = "free_y") +
+  theme_minimal() +
+  labs(title = "Overweight Prevalence by Country and Sub Region (5-year Averages)",
+       x = "5-Year Period",
+       y = "Overweight Prevalence (%)") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+```{r}
+stunting_summary <- data %>%
+  group_by(Year) %>%
+  summarise(
+    Mean = mean(Stunting_model, na.rm = TRUE),
+    Median = median(Stunting_model, na.rm = TRUE),
+    SD = sd(Stunting_model, na.rm = TRUE),
+    Min = min(Stunting_model, na.rm = TRUE),
+    Max = max(Stunting_model, na.rm = TRUE),
+    Count = n(),
+    Missing = sum(is.na(Stunting_model))
+  )
+
+print(stunting_summary)
+
+```
+
+
+```{r}
+ggplot(data, aes(x = Stunting_model)) +
+  geom_histogram(binwidth = 5, fill = "skyblue", color = "black") +
+  facet_wrap(~ Year) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Stunting_model by Year",
+    x = "Stunting_model (%)",
+    y = "Count"
+  )
+
+```
+
+```{r}
+overweight_summary <- data %>%
+  group_by(Year) %>%
+  summarise(
+    Mean = mean(Overweight_model, na.rm = TRUE),
+    Median = median(Stunting_model, na.rm = TRUE),
+    SD = sd(Overweight_model, na.rm = TRUE),
+    Min = min(Overweight_model, na.rm = TRUE),
+    Max = max(Overweight_model, na.rm = TRUE),
+    Count = n(),
+    Missing = sum(is.na(Overweight_model))
+  )
+
+print(overweight_summary)
+
+```
+
+```{r}
+ggplot(data, aes(x = Overweight_model)) +
+  geom_histogram(binwidth = 5, fill = "skyblue", color = "black") +
+  facet_wrap(~ Year) +
+  theme_minimal() +
+  labs(
+    title = "Distribution of Overweight_model by Year",
+    x = "Overweight_model (%)",
+    y = "Count"
+  )
+
+```
+
+
+```{r}
+ggplot(data, aes(x = def_a, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "darkgreen") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs GDP deflator by Year",
+    x = "GDP deflator (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(data, aes(x = hcpi_a, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "pink") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs food price index by Year",
+    x = "Food price index (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(data, aes(x = hcpi_a, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "blue") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs Headline Consumer Price Index by Year",
+    x = "Headline Consumer Price Index (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+
+```
+
+
+```{r}
+ggplot(data, aes(x = LBW, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "red") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs Low Birth Weight Percentage by Year",
+    x = " Low Birth Weight Percentage (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+```
+
+
+```{r}
+ggplot(data, aes(x = U5_population, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "green") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs Population Under five by Year",
+    x = " Population under five years (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+```
+
+```{r}
+ggplot(data, aes(x = inf_mortality, y = Stunting_model)) +
+  geom_point(alpha = 0.6, color = "red") +
+  facet_wrap(~ Year, scales = "free") +
+  labs(
+    title = "Stunting Model vs Mortality rate of children under five years of age by Year",
+    x = " Infant mortality rate (%)",
+    y = "Stunting Model (%)"
+  ) +
+  theme_minimal()
+```
+
+
+
+```{r}
+
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = def_a)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("GDP deflator by Country in", year),
+         x = "Country", y = "GDP delator (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+
+```
+
+```{r}
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = U5_population)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Under five population by Country in", year),
+         x = "Country", y = "Under five population") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
+
+```{r}
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = rural_pop)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Rural population by Country in", year),
+         x = "Country", y = "Rural population (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
+
+
+```{r}
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = LBW)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Low Birth Weight rate by Country in", year),
+         x = "Country", y = "Low birth weight rate") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
+
+```{r}
+df_filtered <- data %>% 
+  filter(Year >= 2000 & Year <= 2022)
+
+
+years <- sort(unique(df_filtered$Year))
+
+
+for (year in years) {
+  yearly_data <- df_filtered %>% filter(Year == year)
+  
+  p <- ggplot(yearly_data, aes(x = Country, y = inf_mortality)) +
+    geom_bar(stat = "identity", fill = "steelblue") +
+    labs(title = paste("Under five mortality rate by Country in", year),
+         x = "Country", y = "Under five mortality (%)") +
+    theme_minimal() +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+  
+  print(p)
+}
+```
 

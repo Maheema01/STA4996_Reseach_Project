@@ -1,0 +1,131 @@
+---
+title: "Logistic Regression models"
+output: pdf_document
+date: "2025-07-25"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+
+```{r}
+install.packages("caTools")
+```
+
+```{r}
+library(dplyr)
+library(caTools)
+library(purrr)
+library(broom)
+library(pROC)
+```
+
+
+```{r}
+data <- read.csv("G:/STA4996_Research/data/Nutrition.csv")
+```
+
+```{r}
+colnames(data)[1:25] <- c("Country", "Year","UN_Region", "UN_sub_region", "Stunting_survey","Stunting_model","Underweight_survey", "Wasting_survey","Overweight_survey","Overweight_model","WHZ_sample_size","HAZ_sample_size","WAZ_sample_size","U5_population", "hcpi_a","fcpi_a","def_a","literacy_female","literacy_tot","health_expenditure","Urban_pop","rural_pop","inf_mortality","LBW","UnemploymentRate")
+```
+
+
+Logistic regression model
+
+
+```{r}
+median_stunting <- median(data$Stunting_model, na.rm = TRUE)
+data <- data %>%
+  mutate(Stunting_binary = ifelse(Stunting_model > median_stunting, 1, 0))
+
+model_data <- data %>%
+  select(Stunting_binary, health_expenditure, U5_population,def_a,hcpi_a,fcpi_a,rural_pop,Urban_pop,LBW,UnemploymentRate,inf_mortality) %>%
+  na.omit()
+
+set.seed(123) # for reproducible results
+split <- sample.split(model_data$Stunting_binary, SplitRatio = 0.8)
+train_data <- subset(model_data, split == TRUE)
+test_data <- subset(model_data, split == FALSE)
+
+stunting_model <- glm(Stunting_binary ~ ., data = train_data, family = "binomial")
+
+print("--- Model Summary ---")
+print(summary(stunting_model))
+
+print("--- Odds Ratios ---")
+print(exp(coef(stunting_model)))
+
+predictions <- predict(stunting_model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+print("--- Performance Metrics ---")
+conf_matrix <- table(Actual = test_data$Stunting_binary, Predicted = predicted_classes)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", round(accuracy, 4)))
+
+
+roc_curve <- roc(test_data$Stunting_binary, predictions)
+print(paste("AUC:", round(auc(roc_curve), 4)))
+
+# Plot the ROC curve
+plot(roc_curve, main="ROC Curve for Stunting Model", col="#0073C2FF", lwd=2)
+abline(a=0, b=1, lty=2, col="gray") # Adds the "random guess" line
+```
+
+
+Overweight 
+
+```{r}
+median_overweight <- median(data$Overweight_model, na.rm = TRUE)
+data <- data %>%
+  mutate(overweight_binary = ifelse(Overweight_model > median_overweight, 1, 0))
+
+model_data_ow<- data %>%
+  select(overweight_binary, health_expenditure, U5_population,def_a,hcpi_a,fcpi_a,rural_pop,Urban_pop,LBW,UnemploymentRate,inf_mortality) %>%
+  na.omit()
+
+set.seed(123) # for reproducible results
+split <- sample.split(model_data_ow$overweight_binary, SplitRatio = 0.8)
+train_data <- subset(model_data_ow, split == TRUE)
+test_data <- subset(model_data_ow, split == FALSE)
+
+overweight_model <- glm(overweight_binary ~ ., data = train_data, family = "binomial")
+
+print("--- Model Summary ---")
+print(summary(overweight_model))
+
+print("--- Odds Ratios ---")
+print(exp(coef(overweight_model)))
+
+predictions <- predict(overweight_model, newdata = test_data, type = "response")
+predicted_classes <- ifelse(predictions > 0.5, 1, 0)
+
+print("--- Performance Metrics ---")
+conf_matrix <- table(Actual = test_data$overweight_binary, Predicted = predicted_classes)
+print("Confusion Matrix:")
+print(conf_matrix)
+
+accuracy <- sum(diag(conf_matrix)) / sum(conf_matrix)
+print(paste("Accuracy:", round(accuracy, 4)))
+
+
+roc_curve <- roc(test_data$overweight_binary, predictions)
+print(paste("AUC:", round(auc(roc_curve), 4)))
+
+# Plot the ROC curve
+plot(roc_curve, main="ROC Curve for overweight model", col="#0073C2FF", lwd=2)
+abline(a=0, b=1, lty=2, col="gray") # Adds the "random guess" line
+```
+
+
+
+
+
+
+
+
+

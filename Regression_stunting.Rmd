@@ -1,6 +1,8 @@
 ---
 title: "Regression model"
-output: html_document
+output:
+  word_document: default
+  html_document: default
 date: "2025-07-14"
 ---
 
@@ -15,6 +17,9 @@ library(see)
 library(dplyr)
 library(tidyverse)
 library(MASS)
+library(purrr)
+library(broom)  
+
 ```
 
 ```{r}
@@ -40,7 +45,28 @@ modelst<-lm(Stunting_model~fcpi_a+hcpi_a+U5_population+def_a+health_expenditure+
 check_model(modelst)
 ```
 
-Check Multicollinearity (VIF)
+Posterior Predictive Check: 
+
+The green model line closely follows the blue observed density. This indicates the model predicts the distribution of stunting model data well and the model captures the shape of the outcome variable accurately.
+
+Linearity:
+
+Residual vs fitted values plot is not perfectly linear, especially at the lower and higher fitted values.
+This slight violation suggests that the model might be missing non-linear relationships.
+Non-linear transformations or polynomials can be used. 
+
+Homogeneity of Variance: 
+
+The spread of residuals should be constant across fitted values. But the obtained plot shows a fairly consistent spread,  but slightly fan-shaped on the right. This suggests that the variance increases for higher fitted values. Robust standard errors or try log-transformation can be used.
+Influential observations: Points should lie inside the red contour lines. The plot gives a small number of observations, has high leverage and may disproportionately affect the model. 
+
+Collinearity: 
+
+All variables have VIF less than 5. Therefore there is no significant multicollinearity present 
+ Normality of Residuals:
+The QQ plot shows moderate deviation at both tails suggesting that the residuals are not perfectly normal, but the issue is not severe.
+
+#Check Multicollinearity (VIF)
 
 ```{r}
 check_collinearity(modelst)
@@ -67,12 +93,15 @@ Model Summary Performance Metrics
 ```{r}
 model_performance(modelst)
 ```
-
+The model explains 71%  of the variation in stunting levels across countries, based on the predictors urban population, health expenditure, unemployment rate, low birth weight rate, GDP deflator growth rate, infant mortality, under 5 population, rural population, food price inflation, headline consumer price inflation.
 
 ```{r}
+library(dplyr)
+
 data_clean <- data %>%
   select(Stunting_model, Urban_pop, health_expenditure, fcpi_a, def_a, UnemploymentRate) %>%
   drop_na()
+
 ```
 
 
@@ -88,5 +117,158 @@ summary(step_model)
 ```{r}
 model_performance(modelst)
 model_performance(step_model)
+```
+
+##Overweight 
+
+```{r}
+modelow<-lm(Overweight_model~fcpi_a+hcpi_a+U5_population+def_a+health_expenditure+inf_mortality+LBW+UnemploymentRate+Urban_pop+rural_pop,data=data)
+```
+
+
+```{r}
+check_model(modelow)
+
+```
+Posterior Predictive Check: 
+
+The model-predicted curve (blue) closely follows the observed data (green). The model captures the distribution of Overweight_model.
+
+Linearity: 
+
+There is some slight structure and non-linearity (upward curve on the right).The relationship between predictors and outcome might not be fully linear.
+
+Homogeneity of Variance: Residuals seem fairly evenly spread across fitted values. This suggests that the model meets the homoscedasticity assumption.
+
+Influential Observations: Most observations are fine
+
+Collinearity:  
+
+All VIF values are green and below 5. Therefore, no multicollinearity problems; all predictors are stable and reliable in the model.
+
+
+Normality of Residuals: There are  deviations at both tails. Residuals are not perfectly normally distributed.
+
+
+Check Multicollinearity (VIF)
+
+```{r}
+check_collinearity(modelow)
+
+```
+
+
+
+Check Homoscedasticity
+
+```{r}
+check_heteroscedasticity(modelow)
+
+```
+
+
+Check Normality of Residuals
+
+```{r}
+check_normality(modelow)
+
+```
+
+Check Outliers
+
+```{r}
+check_outliers(modelow)
+
+```
+
+Model Summary Performance Metrics
+
+```{r}
+model_performance(modelow)
+
+```
+The model explains 56.8%  of the variation in overweight levels across countries, based on the predictors urban population, health expenditure, unemployment rate, low birth weight rate, GDP deflator growth rate, infant mortality, under 5 population, rural population, food price inflation, headline consumer price inflation.
+
+
+
+```{r}
+data_clean <- data %>%
+  select(Overweight_model, Urban_pop, health_expenditure, fcpi_a, def_a, UnemploymentRate) %>%
+  drop_na()
+
+```
+
+
+```{r}
+modelow1 <- lm(Overweight_model ~ Urban_pop + health_expenditure + fcpi_a + def_a + UnemploymentRate,data = data_clean)
+
+
+```
+
+```{r}
+
+step_model <- stepAIC(modelow1, direction = "both")
+summary(step_model)
+
+```
+
+
+```{r}
+model_performance(modelow)
+model_performance(step_model)
+
+```
+
+Separate models for each year.
+
+```{r}
+Stunting_models <- data %>%
+  group_by(Year) %>%
+  filter(!is.na(Stunting_model),
+         !is.na(UN_Region),
+         !is.na(U5_population),
+         !is.na(hcpi_a),
+         !is.na(fcpi_a),
+         !is.na(def_a),
+         !is.na(Urban_pop),
+         !is.na(rural_pop),
+         !is.na(LBW),
+         !is.na(inf_mortality)) %>%
+  group_split() %>%
+  set_names(map_chr(., ~unique(.x$Year))) %>%
+  map(~lm(Stunting_model ~UN_Region+U5_population+hcpi_a+fcpi_a+def_a+Urban_pop+rural_pop+LBW+inf_mortality, data = .x))
+
+```
+
+
+```{r}
+library(broom)
+
+# Coefficients
+stunting_summaries <- map_df(Stunting_models, tidy, .id = "Year")
+#overweight_summaries <- map_df(overweight_models, tidy, .id = "Year")
+
+# R-squared, AIC, etc.
+stunting_metrics <- map_df(Stunting_models, glance, .id = "Year")
+#overweight_metrics <- map_df(overweight_models, glance, .id = "Year")
+
+```
+
+```{r}
+stunting_summaries
+```
+
+```{r}
+stunting_metrics
+```
+
+Residual vs Fitted values
+
+```{r}
+plot(Stunting_models$fitted.values, Stunting_models$residuals,
+     xlab = "Fitted Values", ylab = "Residuals",
+     main = "Residuals vs Fitted")
+abline(h = 0, col = "red")
+
 ```
 
