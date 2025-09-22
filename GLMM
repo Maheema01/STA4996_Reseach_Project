@@ -1,0 +1,58 @@
+
+install.packages("glmmTMB")
+
+
+library(lme4)
+library(lmerTest)   
+library(glmmTMB)    
+
+data$hcpi_a_s  <- scale(data$hcpi_a)
+data$fcpi_a_s  <- scale(data$fcpi_a)
+data$def_a_s   <- scale(data$def_a)
+data$healthexp_s <- scale(data$health_expenditure)
+data$Urban_pop_s <- scale(data$Urban_pop)
+data$inf_mort_s  <- scale(data$inf_mortality)
+data$LBW_s       <- scale(data$LBW)
+data$Unemp_s     <- scale(data$UnemploymentRate)
+
+# 1. GLMM for Stunting
+
+data$Stunting_prop <- data$Stunting_model / 100
+
+model_stunting <- glmmTMB(Stunting_prop ~ 
+                            hcpi_a_s + fcpi_a_s + def_a_s + healthexp_s +
+                            Urban_pop_s + inf_mort_s + LBW_s + Unemp_s +
+                            Year + (1 | Country),
+                          family = beta_family(),
+                          data = data, na.action = na.omit)
+
+summary(model_stunting)
+
+
+# 2. GLMM for Overweight
+
+data$Overweight_prop <- data$Overweight_model / 100
+
+model_overweight <- glmmTMB(Overweight_prop ~ 
+                              hcpi_a_s + fcpi_a_s + def_a_s + healthexp_s +
+                              Urban_pop_s + inf_mort_s + LBW_s + Unemp_s +
+                              Year + (1 | Country),
+                            family = beta_family(),
+                            data = data, na.action = na.omit)
+
+summary(model_overweight)
+
+
+alt_stunting <- glmer(Stunting_model ~ 
+                        hcpi_a_s + fcpi_a_s + def_a_s + healthexp_s +
+                        Urban_pop_s + inf_mort_s + LBW_s + Unemp_s +
+                        Year + (1 | Country),
+                      family = gaussian(link="identity"),
+                      data = data, na.action = na.omit)
+
+alt_overweight <- glmer(Overweight_model ~ 
+                          hcpi_a_s + fcpi_a_s + def_a_s + healthexp_s +
+                          Urban_pop_s + inf_mort_s + LBW_s + Unemp_s +
+                          Year + (1 | Country),
+                        family = gaussian(link="identity"),
+                        data = data, na.action = na.omit)
